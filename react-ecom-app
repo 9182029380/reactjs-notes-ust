@@ -1,0 +1,377 @@
+import React, { useEffect, useState, useRef } from 'react';
+
+function EcommerceApp() {
+  const [products, setProducts] = useState([]); // products list
+  const [search, setSearch] = useState(''); // controlled search
+  const [cart, setCart] = useState([]); // cart items
+  const [discount, setDiscount] = useState(0); // discount %
+  const [showCheckout, setShowCheckout] = useState(false); // checkout modal
+  const [user, setUser] = useState(null); // logged-in user
+  const usernameRef = useRef(); // uncontrolled login input
+  const couponRef = useRef(); // uncontrolled coupon input
+
+  // Fetch products
+  useEffect(() => {
+    fetch('https://fakestoreapi.com/products')
+      .then((res) => res.json())
+      .then((data) => setProducts(data));
+  }, []);
+
+  // Load cart & discount for logged-in user
+  useEffect(() => {
+    if (user) {
+      const savedCart = JSON.parse(localStorage.getItem(`${user}_cart`)) || [];
+      const savedDiscount =
+        JSON.parse(localStorage.getItem(`${user}_discount`)) || 0;
+      setCart(savedCart);
+      setDiscount(savedDiscount);
+    }
+  }, [user]);
+
+  // Save cart & discount when they change
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem(`${user}_cart`, JSON.stringify(cart));
+      localStorage.setItem(`${user}_discount`, JSON.stringify(discount));
+    }
+  }, [cart, discount, user]);
+
+  // Controlled search filter
+  const filteredProducts = products.filter((p) =>
+    p.title.toLowerCase().includes(search.toLowerCase())
+  );
+
+  // Apply coupon
+  const applyCoupon = () => {
+    const code = couponRef.current.value.trim().toUpperCase();
+    if (code === 'SAVE10') {
+      setDiscount(10);
+      alert('✅ Coupon applied: 10% OFF');
+    } else if (code === 'SAVE20') {
+      setDiscount(20);
+      alert('✅ Coupon applied: 20% OFF');
+    } else {
+      setDiscount(0);
+      alert('❌ Invalid coupon code');
+    }
+    couponRef.current.value = '';
+  };
+
+  // Add item to cart
+  const addToCart = (product) => {
+    const existingItem = cart.find((item) => item.id === product.id);
+    if (existingItem) {
+      setCart(
+        cart.map((item) =>
+          item.id === product.id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        )
+      );
+    } else {
+      setCart([...cart, { ...product, quantity: 1 }]);
+    }
+  };
+
+  // Quantity handlers
+  const increaseQty = (id) => {
+    setCart(
+      cart.map((item) =>
+        item.id === id ? { ...item, quantity: item.quantity + 1 } : item
+      )
+    );
+  };
+  const decreaseQty = (id) => {
+    setCart(
+      cart
+        .map((item) =>
+          item.id === id
+            ? { ...item, quantity: Math.max(item.quantity - 1, 1) }
+            : item
+        )
+        .filter((item) => item.quantity > 0)
+    );
+  };
+
+  // Remove item
+  const removeFromCart = (id) => {
+    setCart(cart.filter((item) => item.id !== id));
+  };
+
+  // Totals
+  const subtotal = cart.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
+  const discountedTotal = (subtotal - (subtotal * discount) / 100).toFixed(2);
+
+  // Confirm order
+  const confirmOrder = () => {
+    alert(`🎉 Order confirmed for ${user}! Thank you for shopping.`);
+    setCart([]);
+    setDiscount(0);
+    localStorage.removeItem(`${user}_cart`);
+    localStorage.removeItem(`${user}_discount`);
+    setShowCheckout(false);
+  };
+
+  // Login
+  const handleLogin = () => {
+    const enteredUser = usernameRef.current.value.trim();
+    if (enteredUser) {
+      setUser(enteredUser);
+      usernameRef.current.value = '';
+    } else {
+      alert('⚠️ Please enter a username to login.');
+    }
+  };
+
+  // Logout
+  const handleLogout = () => {
+    setUser(null);
+    setCart([]);
+    setDiscount(0);
+  };
+
+  return (
+    <div style={{ padding: '20px', fontFamily: 'Arial' }}>
+      <h2>🛒 E-Commerce Store</h2>
+
+      {/* User Login */}
+      {!user ? (
+        <div style={{ marginBottom: '20px' }}>
+          <input
+            type="text"
+            placeholder="Enter Username"
+            ref={usernameRef}
+            style={{ padding: '8px', marginRight: '10px' }}
+          />
+          <button onClick={handleLogin} style={{ padding: '8px' }}>
+            Login
+          </button>
+        </div>
+      ) : (
+        <div style={{ marginBottom: '20px' }}>
+          <span>
+            👤 Welcome, <strong>{user}</strong>
+          </span>
+          <button
+            onClick={handleLogout}
+            style={{
+              marginLeft: '15px',
+              padding: '8px',
+              background: 'red',
+              color: 'white',
+              border: 'none',
+              borderRadius: '5px',
+            }}
+          >
+            Logout
+          </button>
+        </div>
+      )}
+
+      {/* Search + Coupon (only when logged in) */}
+      {user && (
+        <>
+          <input
+            type="text"
+            placeholder="Search products..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ padding: '8px', marginRight: '10px', width: '200px' }}
+          />
+          <input
+            type="text"
+            placeholder="Enter Coupon Code"
+            ref={couponRef}
+            style={{ padding: '8px', marginRight: '10px', width: '200px' }}
+          />
+          <button onClick={applyCoupon} style={{ padding: '8px' }}>
+            Apply Coupon
+          </button>
+          <hr />
+        </>
+      )}
+
+      {/* Product List */}
+      {user && (
+        <>
+          <h3>Products</h3>
+          {filteredProducts.length > 0 ? (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: '20px',
+              }}
+            >
+              {filteredProducts.map((product) => (
+                <div
+                  key={product.id}
+                  style={{
+                    border: '1px solid #ddd',
+                    padding: '10px',
+                    borderRadius: '8px',
+                  }}
+                >
+                  <img
+                    src={product.image}
+                    alt={product.title}
+                    style={{ width: '100px', height: '100px' }}
+                  />
+                  <h4>{product.title}</h4>
+                  <p>
+                    <strong>${product.price}</strong>
+                  </p>
+                  <button
+                    onClick={() => addToCart(product)}
+                    style={{
+                      padding: '8px',
+                      backgroundColor: 'green',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '5px',
+                    }}
+                  >
+                    Add to Cart
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p>No products found.</p>
+          )}
+          <hr />
+
+          {/* Cart Section */}
+          <h3>
+            🛍️ {user}'s Cart ({cart.length} items)
+          </h3>
+          {cart.length > 0 ? (
+            <div>
+              <ul>
+                {cart.map((item) => (
+                  <li key={item.id} style={{ marginBottom: '15px' }}>
+                    {item.title} - ${item.price.toFixed(2)} × {item.quantity}
+                    <div style={{ marginTop: '5px' }}>
+                      <button
+                        onClick={() => decreaseQty(item.id)}
+                        style={{ padding: '5px', marginRight: '5px' }}
+                      >
+                        -
+                      </button>
+                      <button
+                        onClick={() => increaseQty(item.id)}
+                        style={{ padding: '5px', marginRight: '5px' }}
+                      >
+                        +
+                      </button>
+                      <button
+                        onClick={() => removeFromCart(item.id)}
+                        style={{
+                          padding: '5px',
+                          backgroundColor: 'red',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '3px',
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <h4>Subtotal: ${subtotal.toFixed(2)}</h4>
+              {discount > 0 && <h4>Discount Applied: {discount}%</h4>}
+              <h3>Final Total: ${discountedTotal}</h3>
+              <button
+                onClick={() => setShowCheckout(true)}
+                style={{
+                  marginTop: '10px',
+                  padding: '10px',
+                  backgroundColor: 'blue',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '5px',
+                }}
+              >
+                Proceed to Checkout
+              </button>
+            </div>
+          ) : (
+            <p>Your cart is empty.</p>
+          )}
+        </>
+      )}
+
+      {/* Checkout Modal */}
+      {showCheckout && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '0',
+            left: '0',
+            right: '0',
+            bottom: '0',
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            style={{
+              background: 'white',
+              padding: '20px',
+              borderRadius: '10px',
+              width: '400px',
+            }}
+          >
+            <h3>🧾 Order Summary</h3>
+            <ul>
+              {cart.map((item) => (
+                <li key={item.id}>
+                  {item.title} × {item.quantity} = $
+                  {(item.price * item.quantity).toFixed(2)}
+                </li>
+              ))}
+            </ul>
+            <h4>Subtotal: ${subtotal.toFixed(2)}</h4>
+            {discount > 0 && <h4>Discount: {discount}%</h4>}
+            <h3>Total Payable: ${discountedTotal}</h3>
+
+            <button
+              onClick={confirmOrder}
+              style={{
+                padding: '10px',
+                backgroundColor: 'green',
+                color: 'white',
+                border: 'none',
+                borderRadius: '5px',
+                marginRight: '10px',
+              }}
+            >
+              Confirm Order
+            </button>
+            <button
+              onClick={() => setShowCheckout(false)}
+              style={{
+                padding: '10px',
+                backgroundColor: 'gray',
+                color: 'white',
+                border: 'none',
+                borderRadius: '5px',
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default EcommerceApp;
